@@ -1,11 +1,13 @@
+# app/schemas/lead_schema.py
 from pydantic import BaseModel
-from typing import Literal
 from datetime import datetime
+from typing import Optional # <--- Add this import
 
 class LeadInput(BaseModel):
     name: str
     contact: str
-    matter_type: Literal["property", "insurance", "legal_consult"]
+    matter_type: str
     jurisdiction: str
-    urgency: Literal["low", "medium", "high"]
-    preferred_time: datetime
+    urgency: str
+    # Change it to Optional with a default value of None
+    preferred_time: Optional[datetime] = None
