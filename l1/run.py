@@ -15,13 +15,11 @@ from datetime import datetime
 #     result = L1_LEGAL_INTAKE_AGENT.run(lead)
 #     print(result)
 
-
-
-# run.py
 import os
 from dotenv import load_dotenv
-load_dotenv() # This loads the variables from .env
-from datetime import datetime # <--- Add this import
+from datetime import datetime
+load_dotenv()
+
 from app.agents.l1_legal_intake_agent import L1_LEGAL_INTAKE_AGENT
 from app.schemas.lead_schema import LeadInput
 
@@ -31,7 +29,8 @@ lead_data = LeadInput(
     matter_type='property', 
     jurisdiction='Bangalore', 
     urgency='high',
-    preferred_time=datetime(2026, 1, 20, 11, 0) # <--- Add this field
+    parties=['Ramesh Kumar', 'ABC Builders'], # Added parties
+    preferred_time=datetime(2026, 1, 20, 11, 0)
 )
 
 L1_LEGAL_INTAKE_AGENT.print_response(lead_data)

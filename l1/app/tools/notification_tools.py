@@ -1,5 +1,7 @@
-def send_intake_packet(lead: dict) -> dict:
-    return {"packet_url": "https://secure.example.com/intake", "sent": True}
+def send_intake_packet(name: str, contact: str) -> dict:
+    """Sends forms to lead. Args: name (str), contact (str)"""
+    return {"status": "sent", "link": "https://forms.legal.com/i102"}
 
-def notify_staff(event: dict) -> dict:
-    return {"staff_notified": True, "channel": "internal"}
+def notify_staff(details: str) -> dict:
+    """Alerts legal team. Args: details (str)"""
+    return {"status": "notified"}
