@@ -2,3 +2,5 @@
 l1/.env
 .venv/
 __pycache__/
+google_credentials.json
+token.json

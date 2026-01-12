@@ -30,7 +30,7 @@ lead_data = LeadInput(
     jurisdiction='Bangalore', 
     urgency='high',
     parties=['Ramesh Kumar', 'ABC Builders'], # Added parties
-    preferred_time=datetime(2026, 1, 20, 11, 0)
+    preferred_time=datetime(2026, 2, 20, 11, 0)
 )
 
 L1_LEGAL_INTAKE_AGENT.print_response(lead_data)
