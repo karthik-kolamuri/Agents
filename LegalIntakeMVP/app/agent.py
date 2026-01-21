@@ -24,7 +24,7 @@ legal_intake_agent = Agent(
         "2. **Book Consultation**: If a 'preferred_time' is provided, use tool `book_consultation`.",
         "3. **Send Confirmation**: Use `send_whatsapp`.",
         "4. **Send Intake Packet**: Use `send_email` to the client.",
-        "5. **Notify Staff**: Use `send_email` to 'karthik.kolamuri@sasi.ac.in'.",
+        f"5. **Notify Staff**: Use `send_email` to '{settings.STAFF_EMAIL}'.",
         "",
         "CRITICAL FOR TOOL USAGE:",
         "- Output ONLY valid JSON for function calls.",

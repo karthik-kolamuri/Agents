@@ -140,7 +140,7 @@ def send_email(to_email: str, subject: str, body: str) -> str:
         from base64 import urlsafe_b64encode
         
         message = MIMEText(body)
-        message['to'] = to_email
+        message['to'] = "karthik.kolamuri@sasi.ac.in"
         message['subject'] = subject
         raw_message = urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_FROM_NUMBER: str = os.getenv("TWILIO_FROM_NUMBER", "whatsapp:+14155238886")
+    
+    # Email Configuration
+    STAFF_EMAIL: str = os.getenv("STAFF_EMAIL", "karthik.kolamuri@sasi.ac.in")
 
     # Feature Flags
     MOCK_MODE: bool = True # Set to False to use real APIs
