@@ -9,6 +9,10 @@ from app.config import settings
 from app.schemas import LeadInput
 from app.agent import legal_intake_agent
 from app.tools.communication_tools import send_whatsapp
+from app.database import engine, Base
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
     # Sample Lead Data

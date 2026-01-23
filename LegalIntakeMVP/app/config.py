@@ -23,4 +23,7 @@ class Settings(BaseSettings):
     # Feature Flags
     MOCK_MODE: bool = True # Set to False to use real APIs
 
+    # Database
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:Ka45h8k%40@localhost:5433/legal_intake_db")
+
 settings = Settings()

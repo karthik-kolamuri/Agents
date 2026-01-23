@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 import os.path
 from app.config import settings
+from app.database import SessionLocal
+from app.models import Client, Appointment, InteractionLog
 
 # Placeholder for Google API imports (to be installed via requirements.txt)
 try:
@@ -76,6 +78,38 @@ def book_consultation(client_name: str, preferred_time: str) -> str:
         }
         
         event = service.events().insert(calendarId='primary', body=event).execute()
+        
+        # --- Save to Database ---
+        try:
+            db = SessionLocal()
+            # Try to find client by name (Not ideal, but tool signature only has name)
+            # In a real app, we'd pass ID or contact. For MVP, name or latest matching lead.
+            client = db.query(Client).filter(Client.name == client_name).first()
+            if client:
+                appt = Appointment(
+                    client_id=client.id,
+                    appointment_time=start_time,
+                    status="Scheduled"
+                )
+                db.add(appt)
+                
+                # Log interaction
+                log = InteractionLog(
+                    client_id=client.id,
+                    action="Consultation Booked",
+                    details=f"Booked for {preferred_time}"
+                )
+                db.add(log)
+                
+                db.commit()
+                db.close()
+                print(f" [DB] Saved appointment for {client_name}.")
+            else:
+                 print(f" [DB Warning] Client {client_name} not found in DB, skipping appointment save.")
+        except Exception as e:
+            print(f" [DB Error] Failed to save appointment: {e}")
+        # ------------------------
+
         return f"success_booking_id_{event.get('id')}"
     except Exception as e:
         return f"error: {str(e)}"
@@ -107,6 +141,40 @@ def log_lead_to_sheet(name: str, contact: str, matter_type: str, jurisdiction: s
         
         # Prepare row data
         parties_str = ", ".join(parties) if isinstance(parties, list) else str(parties)
+        
+        # --- Save to Database ---
+        try:
+            db = SessionLocal()
+            # Check if client exists
+            client = db.query(Client).filter(Client.contact == contact).first()
+            if not client:
+                client = Client(
+                    name=name,
+                    contact=contact,
+                    matter_type=matter_type,
+                    jurisdiction=jurisdiction,
+                    urgency=urgency,
+                    parties=parties_str,
+                    email="" # Not provided in this tool, can be updated later
+                )
+                db.add(client)
+                db.commit()
+                db.refresh(client)
+            
+            # Log interaction
+            log = InteractionLog(
+                client_id=client.id,
+                action="Lead Logged",
+                details=f"Lead logged via tool. Preferred time: {preferred_time}"
+            )
+            db.add(log)
+            db.commit()
+            db.close()
+            print(f" [DB] Saved client {name} to database.")
+        except Exception as e:
+            print(f" [DB Error] Failed to save client: {e}")
+        # ------------------------
+
         values = [[name, contact, matter_type, jurisdiction, urgency, parties_str, preferred_time or ""]]
         body = {'values': values}
         
