@@ -17,12 +17,13 @@ Base.metadata.create_all(bind=engine)
 if __name__ == "__main__":
     # Sample Lead Data
     sample_lead = LeadInput(
-        name="Karthik Kolamuri",
+        name="Pavan Teja",
         contact="+919182615101",
-        matter_type="Criminal Offence",
-        jurisdiction="Hyderabad",
+        email="pavan.teja@sasi.ac.in",
+        matter_type="Offence",
+        jurisdiction="bangalore",
         urgency="High",
-        parties=["Jane Doe"],
+        parties=["Jane Doe", "ABC Company"],
         preferred_time=datetime.now().replace(microsecond=0) + timedelta(days=3)
     )
 

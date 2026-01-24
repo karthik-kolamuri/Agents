@@ -6,10 +6,9 @@ from app.database import Base
 class Client(Base):
     __tablename__ = "clients"
 
-    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, primary_key=True, index=True)
     name = Column(String, index=True)
-    contact = Column(String, unique=True, index=True)
-    email = Column(String, nullable=True)
+    contact = Column(String, index=True)
     matter_type = Column(String, nullable=True)
     jurisdiction = Column(String, nullable=True)
     urgency = Column(String, nullable=True)
@@ -23,7 +22,7 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"))
+    client_email = Column(String, ForeignKey("clients.email"))
     appointment_time = Column(DateTime)
     status = Column(String, default="Scheduled") # Scheduled, Completed, Cancelled
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -34,7 +33,7 @@ class InteractionLog(Base):
     __tablename__ = "interaction_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
+    client_email = Column(String, ForeignKey("clients.email"), nullable=True)
     action = Column(String) # e.g., "Consultation Booked", "Message Sent"
     details = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)

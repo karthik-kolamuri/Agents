@@ -82,12 +82,18 @@ def book_consultation(client_name: str, preferred_time: str) -> str:
         # --- Save to Database ---
         try:
             db = SessionLocal()
-            # Try to find client by name (Not ideal, but tool signature only has name)
-            # In a real app, we'd pass ID or contact. For MVP, name or latest matching lead.
-            client = db.query(Client).filter(Client.name == client_name).first()
+            # Find client by name (since tool input doesn't always have email, but we should prioritize email if available)
+            # NOTE: For this specific tool 'book_consultation', we only get 'client_name'. 
+            # Ideally, we should fetch by email. But in MVP, we might have to rely on name or pass email too.
+            # However, since the user enforced email as PK, we really need the email here.
+            # Assuming the agent will handle context, but the tool signature currently only has name.
+            # We will try to find a client with this name and use their email. 
+            # CAUTION: If multiple clients have same name, this might pick one randomly.
+            client = db.query(Client).filter(Client.name == client_name).first() # Simplified lookup
+            
             if client:
                 appt = Appointment(
-                    client_id=client.id,
+                    client_email=client.email,
                     appointment_time=start_time,
                     status="Scheduled"
                 )
@@ -95,15 +101,18 @@ def book_consultation(client_name: str, preferred_time: str) -> str:
                 
                 # Log interaction
                 log = InteractionLog(
-                    client_id=client.id,
+                    client_email=client.email,
                     action="Consultation Booked",
                     details=f"Booked for {preferred_time}"
                 )
                 db.add(log)
                 
+                
                 db.commit()
+                # Extract email for printing before closing session
+                c_email = client.email 
+                print(f" [DB] Saved appointment for {client_name} (Email: {c_email}).")
                 db.close()
-                print(f" [DB] Saved appointment for {client_name}.")
             else:
                  print(f" [DB Warning] Client {client_name} not found in DB, skipping appointment save.")
         except Exception as e:
@@ -114,12 +123,13 @@ def book_consultation(client_name: str, preferred_time: str) -> str:
     except Exception as e:
         return f"error: {str(e)}"
 
-def log_lead_to_sheet(name: str, contact: str, matter_type: str, jurisdiction: str, urgency: str, parties: list, preferred_time: str = None) -> str:
+def log_lead_to_sheet(name: str, contact: str, email: str, matter_type: str, jurisdiction: str, urgency: str, parties: list, preferred_time: str = None) -> str:
     """
     Logs lead details to a Google Sheet.
     Args:
         name: Full name of the client.
         contact: Contact information.
+        email: Email address.
         matter_type: Type of legal matter.
         jurisdiction: Jurisdiction/Location.
         urgency: Urgency level.
@@ -129,7 +139,7 @@ def log_lead_to_sheet(name: str, contact: str, matter_type: str, jurisdiction: s
     if settings.MOCK_MODE:
         pt_str = f" | {preferred_time}" if preferred_time else ""
         parties_str = ", ".join(parties) if isinstance(parties, list) else str(parties)
-        print(f"\n[MOCK] 📝 Google Sheets: Appended row -> {name} | {contact} | {matter_type} | {parties_str}{pt_str}")
+        print(f"\n[MOCK] 📝 Google Sheets: Appended row -> {name} | {contact} | {email} | {matter_type} | {parties_str}{pt_str}")
         return "success_mock_row_added"
 
     try:
@@ -145,25 +155,36 @@ def log_lead_to_sheet(name: str, contact: str, matter_type: str, jurisdiction: s
         # --- Save to Database ---
         try:
             db = SessionLocal()
-            # Check if client exists
-            client = db.query(Client).filter(Client.contact == contact).first()
+            # Check if client exists by EMAIL (Primary Key)
+            client = db.query(Client).filter(Client.email == email).first()
             if not client:
                 client = Client(
+                    email=email,
                     name=name,
                     contact=contact,
                     matter_type=matter_type,
                     jurisdiction=jurisdiction,
                     urgency=urgency,
-                    parties=parties_str,
-                    email="" # Not provided in this tool, can be updated later
+                    parties=parties_str
                 )
                 db.add(client)
-                db.commit()
-                db.refresh(client)
+                print(f" [DB] Creating new client entry: {email}")
+            else:
+                 # Update existing
+                 client.name = name
+                 client.contact = contact
+                 client.matter_type = matter_type
+                 client.jurisdiction = jurisdiction
+                 client.urgency = urgency
+                 client.parties = parties_str
+                 print(f" [DB] Updating existing client: {email}")
+
+            db.commit()
+            db.refresh(client)
             
             # Log interaction
             log = InteractionLog(
-                client_id=client.id,
+                client_email=client.email,
                 action="Lead Logged",
                 details=f"Lead logged via tool. Preferred time: {preferred_time}"
             )
@@ -175,7 +196,7 @@ def log_lead_to_sheet(name: str, contact: str, matter_type: str, jurisdiction: s
             print(f" [DB Error] Failed to save client: {e}")
         # ------------------------
 
-        values = [[name, contact, matter_type, jurisdiction, urgency, parties_str, preferred_time or ""]]
+        values = [[name, contact, email, matter_type, jurisdiction, urgency, parties_str, preferred_time or ""]]
         body = {'values': values}
         
         result = service.spreadsheets().values().append(
@@ -208,7 +229,7 @@ def send_email(to_email: str, subject: str, body: str) -> str:
         from base64 import urlsafe_b64encode
         
         message = MIMEText(body)
-        message['to'] = "karthik.kolamuri@sasi.ac.in"
+        message['to'] = to_email
         message['subject'] = subject
         raw_message = urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         
