@@ -4,3 +4,4 @@ l1/.env
 __pycache__/
 google_credentials.json
 token.json
+node_modules

@@ -1,0 +1,9 @@
+agno
+fastapi
+uvicorn
+psycopg[binary]
+python-dotenv
+langdetect
+groq
+sqlalchemy
+sentence-transformers
