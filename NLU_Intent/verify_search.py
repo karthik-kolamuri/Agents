@@ -11,7 +11,7 @@ def test_search():
     searcher = QASearcher()
     
     queries = [
-        "what is the price of 2bhk?",
+        "what is the price of flat?",
         "is there a swimming pool?",
         "how to book a flat?"
     ]
