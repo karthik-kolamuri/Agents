@@ -25,15 +25,13 @@ class Utterance(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     session_id: str
-    caller_id: str
+    user_id: str
     utterance: str
-    turn_index: int
     detected_language: Optional[str] = None
     context: List[Utterance] = []
 
 class AnalyzeResponse(BaseModel):
     session_id: str
-    turn_index: int
     intent: str
     intent_confidence: float
     language: str
@@ -51,7 +49,6 @@ def analyze(req: AnalyzeRequest):
         # Fallback if no GROQ_API_KEY is configured.
         return AnalyzeResponse(
             session_id=req.session_id,
-            turn_index=req.turn_index,
             intent="PROJECT_INFO",
             intent_confidence=0.0,
             language=req.detected_language or "unknown",
@@ -113,7 +110,6 @@ def analyze(req: AnalyzeRequest):
         qa_match = searcher.best_match(req.utterance)
         return AnalyzeResponse(
             session_id=req.session_id,
-            turn_index=req.turn_index,
             intent="PROJECT_INFO",
             intent_confidence=0.0,
             language=req.detected_language or "unknown",
@@ -158,7 +154,6 @@ def analyze(req: AnalyzeRequest):
 
     res = AnalyzeResponse(
         session_id=req.session_id,
-        turn_index=req.turn_index,
         intent=data.get("intent", "OTHER"),
         intent_confidence=float(data.get("intent_confidence", 0.0)),
         language=data.get("language", req.detected_language or "unknown"),
@@ -181,7 +176,6 @@ def analyze(req: AnalyzeRequest):
                 "utterance": req.utterance,
                 "action": action,
                 "answer": res.answer_text,
-                "turn_index": req.turn_index,
             })
 
             # Build merged entities (only non-null values)
