@@ -17,7 +17,7 @@ agent_db = PostgresDb(
 
 nlu_intent_agent = Agent(
     name="RealEstateNLUIntent",
-    model=Groq(id="llama-3.3-70b-versatile", api_key=groq_api_key) if groq_api_key else None,
+    model=Groq(id="llama-3.1-8b-instant", api_key=groq_api_key) if groq_api_key else None,
     db=agent_db,
     add_history_to_context=True,
     num_history_runs=5,

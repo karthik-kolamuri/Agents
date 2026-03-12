@@ -1,9 +1,10 @@
 agno
 fastapi
-uvicorn
+uvicorn[standard]
 psycopg[binary]
 python-dotenv
 langdetect
 groq
 sqlalchemy
 sentence-transformers
+websockets

@@ -1,6 +1,6 @@
 import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from agent import STTAgent
@@ -15,17 +15,17 @@ if not DATABASE_URL:
     print("⚠️ WARNING: DATABASE_URL is not set in environment. App will crash.")
 
 # Initial dummy state for local testing
-DUMMY_SESSION_ID = "test_local_mic_001"
+DUMMY_SESSION_ID = "test_local_mic_002"
 DUMMY_SESSION_STATE = {
   "session_id": DUMMY_SESSION_ID,
   "user_id": "debug_user",
-  "created_at": datetime.utcnow().isoformat() + "Z",
-  "updated_at": datetime.utcnow().isoformat() + "Z",
+  "created_at": datetime.now(timezone.utc).isoformat() + "Z",
+  "updated_at": datetime.now(timezone.utc).isoformat() + "Z",
   "state": {
     "caller_number": "local_mic",
     "caller_name": "Dev User",
     "language": "en",
-    "call_start_time": datetime.utcnow().isoformat() + "Z",
+    "call_start_time": datetime.now(timezone.utc).isoformat() + "Z",
     "conversation": [],
     "entities": {},
     "intent_history": [],

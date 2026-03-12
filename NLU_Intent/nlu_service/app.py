@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row # Keeping for potential future use if needed, but unused now
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
 from pydantic import BaseModel
 
 from .agent import nlu_intent_agent
@@ -45,6 +46,34 @@ class AnalyzeResponse(BaseModel):
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest):
+    return process_utterance(req)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print(f"[INFO] WebSocket connection accepted")
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # Validate payload
+            req = AnalyzeRequest(**data)
+            # Run processing to get the response Object
+            response = await asyncio.to_thread(process_utterance, req)
+            # Send result back IMMEDIATELY so STT gets it fast
+            await websocket.send_json(response.model_dump())
+            
+            # Now, run the slow database update in the background
+            asyncio.create_task(asyncio.to_thread(update_nlu_db, req, response))
+    except WebSocketDisconnect:
+        print(f"[INFO] WebSocket disconnected for session {data.get('session_id', 'unknown') if 'data' in locals() else 'unknown'}")
+    except Exception as e:
+        print(f"[ERROR] WebSocket error: {e}")
+        try:
+             await websocket.close()
+        except:
+             pass
+
+def process_utterance(req: AnalyzeRequest) -> AnalyzeResponse:
     if nlu_intent_agent.model is None:
         # Fallback if no GROQ_API_KEY is configured.
         return AnalyzeResponse(
@@ -91,17 +120,17 @@ def analyze(req: AnalyzeRequest):
             if hasattr(msg, "role") and msg.role == "assistant" and msg.content:
                 content_str = msg.content
                 break
+    
+    # print(f"[DEBUG] Raw agent response type: {type(raw)}")
+    # print(f"[DEBUG] Extracted content_str: {repr(content_str)}")
 
-    # Clean up potential markdown formatting (e.g., ```json ... ```)
-    content_str = content_str.strip()
-    if content_str.startswith("```json"):
-        content_str = content_str[7:]
-    if content_str.startswith("```"):
-        content_str = content_str[3:]
-    if content_str.endswith("```"):
-        content_str = content_str[:-3]
-    content_str = content_str.strip()
-
+    # Extract JSON robustly: find the first '{' and last '}'
+    start_idx = content_str.find('{')
+    end_idx = content_str.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1:
+        content_str = content_str[start_idx:end_idx+1]
+    
     try:
         data = json.loads(content_str)
     except Exception as e:
@@ -165,49 +194,45 @@ def analyze(req: AnalyzeRequest):
         flags=flags,
     )
 
-    # ── Write NLU results back to Agent 1's "calls" table ──
+    return res
+
+def update_nlu_db(req: AnalyzeRequest, res: AnalyzeResponse):
+    """Background task to save NLU results to Agent 1's DB"""
     try:
         dsn = os.getenv("DATABASE_URL")
-        if dsn:
-            # Build the intent history entry
-            intent_entry = json.dumps({
-                "intent": res.intent,
-                "confidence": res.intent_confidence,
-                "utterance": req.utterance,
-                "action": action,
-                "answer": res.answer_text,
-            })
+        if not dsn: return
+        
+        intent_entry = json.dumps({
+            "intent": res.intent,
+            "confidence": res.intent_confidence,
+            "utterance": req.utterance,
+            "action": res.action,
+            "answer": res.answer_text,
+        })
+        
+        entities_json = json.dumps(res.entities)
 
-            # Build merged entities (only non-null values)
-            detected_entities = {k: v for k, v in (data.get("entities") or {}).items() if v is not None}
-            entities_json = json.dumps(detected_entities)
-
-            with psycopg.connect(dsn) as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE calls SET
-                            session_data = jsonb_set(
+        with psycopg.connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE calls SET
+                        session_data = jsonb_set(
+                            jsonb_set(
                                 jsonb_set(
-                                    jsonb_set(
-                                        session_data,
-                                        '{intent_history}',
-                                        COALESCE(session_data->'intent_history', '[]'::jsonb) || %s::jsonb
-                                    ),
-                                    '{entities}',
-                                    COALESCE(session_data->'entities', '{}'::jsonb) || %s::jsonb
+                                    session_data,
+                                    '{intent_history}',
+                                    COALESCE(session_data->'intent_history', '[]'::jsonb) || %s::jsonb
                                 ),
-                                '{language}',
-                                %s::jsonb
-                            )
-                        WHERE session_id = %s
-                        """,
-                        (intent_entry, entities_json, json.dumps(res.language), req.session_id)
-                    )
-                    rows_updated = cur.rowcount
-                    if rows_updated == 0:
-                        print(f"[WARN] No row found in 'calls' for session_id={req.session_id}")
+                                '{entities}',
+                                COALESCE(session_data->'entities', '{}'::jsonb) || %s::jsonb
+                            ),
+                            '{language}',
+                            %s::jsonb
+                        )
+                    WHERE session_id = %s
+                    """,
+                    (intent_entry, entities_json, json.dumps(res.language), req.session_id)
+                )
     except Exception as e:
         print(f"[WARN] Failed to update Agent 1 calls table: {e}")
-
-    return res

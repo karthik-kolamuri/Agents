@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 from dotenv import load_dotenv
 from deepgram import (
     DeepgramClient,
@@ -11,7 +12,7 @@ from tools.session_tools import SessionTools
 
 load_dotenv()
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-NLU_SERVICE_URL = os.getenv("NLU_SERVICE_URL", "http://localhost:8000")
+NLU_SERVICE_URL = os.getenv("NLU_SERVICE_URL", "http://127.0.0.1:8000")
 
 class STTAgent:
     def __init__(self, db_url: str):
@@ -23,12 +24,40 @@ class STTAgent:
         self.last_final_transcript = ""
         self.session_id = None
         self.loop = None
+        self.ws_session = None
+        self.ws_connection = None
+        self.listener_task = None
+
+    async def _listen_to_nlu(self):
+        """Background task to continuously receive messages from NLU WebSocket."""
+        try:
+            async for msg in self.ws_connection:
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    data = json.loads(msg.data)
+                    print(f"NLU Intent: {data.get('intent')} (Confidence: {data.get('intent_confidence')})")
+                    print(f"NLU Answer: {data.get('answer_text')}")
+                elif msg.type == aiohttp.WSMsgType.ERROR:
+                    break
+        except Exception as e:
+            print(f"NLU listener error: {e}")
 
     async def run(self, session_id: str, audio_generator, language_code: str):
         self.session_id = session_id
         self.loop = asyncio.get_running_loop()
         dg_connection = None
         
+        # Connect to NLU via WebSockets using aiohttp with keepalive heartbeats
+        try:
+            ws_url = NLU_SERVICE_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+            self.ws_session = aiohttp.ClientSession()
+            # heartbeat=30 ensures the client sends a PING to the server every 30 seconds
+            # so the operating system/proxy never closes the idle connection.
+            self.ws_connection = await self.ws_session.ws_connect(ws_url, heartbeat=30.0)
+            self.listener_task = self.loop.create_task(self._listen_to_nlu())
+            print("[INFO] Connected to NLU WebSocket!")
+        except Exception as e:
+            print(f"[WARN] Failed to connect to NLU WebSocket: {e}")
+
         try:
             dg_connection = self.dg_client.listen.live.v("1")
             
@@ -59,8 +88,15 @@ class STTAgent:
         except Exception as e:
             pass
         finally:
+            # Cleanup
             if dg_connection:
                 dg_connection.finish()
+            if self.listener_task:
+                self.listener_task.cancel()
+            if self.ws_connection and not self.ws_connection.closed:
+                await self.ws_connection.close()
+            if self.ws_session and not self.ws_session.closed:
+                await self.ws_session.close()
 
     def handle_transcript(self, connection, result, **kwargs):
         if not result or not self.session_id:
@@ -97,27 +133,21 @@ class STTAgent:
 
                     if self.loop and not self.loop.is_closed():
                         async def save_to_db_and_nlu(sid, txt):
-                            # Save transcript to DB
-                            await asyncio.to_thread(self.session_tools.update_transcript, sid, txt, "en")
-                            
-                            # Send to NLU service
-                            try:
+                            # 1. IMMEDIATE: Stream to NLU via WebSocket FIRST so LLM starts generating
+                            if self.ws_connection and not self.ws_connection.closed:
                                 payload = {
                                     "session_id": sid,
                                     "user_id": "caller",
                                     "utterance": txt,
                                     "detected_language": "en"
                                 }
-                                async with aiohttp.ClientSession() as session:
-                                    async with session.post(f"{NLU_SERVICE_URL}/analyze", json=payload) as response:
-                                        if response.status == 200:
-                                            data = await response.json()
-                                            print(f"NLU Intent: {data.get('intent')} (Confidence: {data.get('intent_confidence')})")
-                                            print(f"NLU Answer: {data.get('answer_text')}")
-                                        else:
-                                            print(f"NLU Error: {response.status}")
-                            except Exception as nlu_err:
-                                print(f"Failed to call NLU service: {nlu_err}")
+                                try:
+                                    await self.ws_connection.send_json(payload)
+                                except Exception as nlu_err:
+                                    print(f"Failed to stream to NLU WebSocket: {nlu_err}")
+                                    
+                            # 2. BACKGROUND: Save transcript to Neon DB (takes a few hundred ms)
+                            await asyncio.to_thread(self.session_tools.update_transcript, sid, txt, "en")
 
                         asyncio.run_coroutine_threadsafe(
                             save_to_db_and_nlu(self.session_id, completed_utterance), 
@@ -141,27 +171,21 @@ class STTAgent:
 
             if self.loop and not self.loop.is_closed():
                 async def save_to_db_and_nlu(sid, txt):
-                    # Save transcript to DB
-                    await asyncio.to_thread(self.session_tools.update_transcript, sid, txt, "en")
-                    
-                    # Send to NLU service
-                    try:
+                    # 1. IMMEDIATE: Stream to NLU via WebSocket FIRST 
+                    if self.ws_connection and not self.ws_connection.closed:
                         payload = {
                             "session_id": sid,
                             "user_id": "caller",
                             "utterance": txt,
                             "detected_language": "en"
                         }
-                        async with aiohttp.ClientSession() as session:
-                            async with session.post(f"{NLU_SERVICE_URL}/analyze", json=payload) as response:
-                                if response.status == 200:
-                                    data = await response.json()
-                                    print(f"NLU Intent: {data.get('intent')} (Confidence: {data.get('intent_confidence')})")
-                                    print(f"NLU Answer: {data.get('answer_text')}")
-                                else:
-                                    print(f"NLU Error: {response.status}")
-                    except Exception as nlu_err:
-                        print(f"Failed to call NLU service: {nlu_err}")
+                        try:
+                            await self.ws_connection.send_json(payload)
+                        except Exception as nlu_err:
+                            print(f"Failed to stream to NLU WebSocket: {nlu_err}")
+                            
+                    # 2. BACKGROUND: Save transcript to DB
+                    await asyncio.to_thread(self.session_tools.update_transcript, sid, txt, "en")
 
                 asyncio.run_coroutine_threadsafe(
                     save_to_db_and_nlu(self.session_id, completed_utterance), 
