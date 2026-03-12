@@ -1,0 +1,6 @@
+deepgram-sdk==3.4.0
+pyaudio
+sqlalchemy
+psycopg2-binary
+python-dotenv
+aiohttp
