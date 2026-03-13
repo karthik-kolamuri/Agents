@@ -1,0 +1,3 @@
+﻿S2 prev type=dict val={'msg': 'from_step1', 'original': {'utterance': 'hello', 'session_id': 's1'}}
+S3 prev type=dict val={'msg': 'from_step2', 'got_from_s1': {'msg': 'from_step1', 'original': {'utterance': 'hello', 'session_id': 's1'}}}
+Final content: ALL GOOD

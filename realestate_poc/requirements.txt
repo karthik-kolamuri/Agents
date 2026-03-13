@@ -1,0 +1,10 @@
+deepgram-sdk
+agno
+psycopg[binary]
+python-dotenv
+langdetect
+groq
+sqlalchemy
+sentence-transformers
+pyaudio
+openai
