@@ -9,6 +9,7 @@ from agno.agent import Agent
 # Import our custom components
 from nlu.agent import nlu_intent_agent
 from nlu.qa_search import QASearcher
+from tts.agent import generate_and_play_voice
 from tools.session_tools import SessionTools
 
 # Instantiate shared tools
@@ -174,12 +175,25 @@ async def vector_search_step(step_input) -> StepOutput:
         
     return StepOutput(content=final_response)
 
+async def tts_agent_step(step_input) -> StepOutput:
+    """Takes the final answer from the workflow and speaks it aloud using ElevenLabs."""
+    prev = step_input.previous_step_content
+    if isinstance(prev, dict) and "answer" in prev and prev["answer"]:
+        answer_text = prev["answer"]
+        # Trigger the voice synthesis in a background asyncio thread
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.create_task(generate_and_play_voice(answer_text))
+        
+    return StepOutput(content=prev)
+
 # Instantiate the final Agno Workflow
 realestate_workflow = Workflow(
     name="RealEstate Unified Pipeline",
     steps=[
         context_preparation_step,
         nlu_agent_step,
-        vector_search_step
+        vector_search_step,
+        tts_agent_step
     ]
 )

@@ -4,8 +4,9 @@ from sqlalchemy import text
 
 class SessionTools:
     def __init__(self, db_url: str):
-        # Convert standard Postgres URL to asyncpg
+        # Convert standard Postgres URL to asyncpg and fix SSL argument name
         async_url = db_url.replace("postgresql://", "postgresql+asyncpg://") if "postgresql://" in db_url else db_url
+        async_url = async_url.replace("sslmode=require", "ssl=require")
         self.engine = create_async_engine(async_url, pool_size=10, max_overflow=20)
 
     async def verify_or_create_table(self):

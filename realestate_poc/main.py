@@ -1,4 +1,5 @@
 import os
+import sys
 import asyncio
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -122,7 +123,8 @@ class RealEstatePipeline:
         # Create the session row in DB (same as original Agent 1)
         if DATABASE_URL:
             session_tools = SessionTools(DATABASE_URL)
-            await asyncio.to_thread(session_tools.create_dummy_session, DUMMY_SESSION_ID, DUMMY_SESSION_STATE)
+            # Await the new async method natively without thread wrapping
+            await session_tools.create_dummy_session(DUMMY_SESSION_ID, DUMMY_SESSION_STATE)
             print(f"Session '{DUMMY_SESSION_ID}' ready in DB.")
 
         try:
@@ -161,5 +163,9 @@ class RealEstatePipeline:
                 dg_connection.finish()
 
 if __name__ == "__main__":
+    # Psycopg async on Windows requires the SelectorEventLoop
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
     pipeline = RealEstatePipeline()
     asyncio.run(pipeline.start())
