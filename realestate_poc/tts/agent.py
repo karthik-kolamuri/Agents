@@ -33,7 +33,7 @@ def generate_and_play_voice_sync(text: str):
         # Request raw PCM audio instead of compressed MP3 for immediate streaming
         audio_stream = client.text_to_speech.convert(
             text=text,
-            voice_id="B8gJV1IhpuegLxdpXFOE", # Using the same voice from voice-agent-simple
+            voice_id="pNInz6obpgDQGcFmaJgB", # Using the same voice from voice-agent-simple
             model_id="eleven_turbo_v2",
             output_format="pcm_16000"
         )
