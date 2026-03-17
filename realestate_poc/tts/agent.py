@@ -47,12 +47,10 @@ def generate_and_play_voice_sync(text: str):
                         
         print(f"[TTS] Speaking: '{text}'")
         
-        # Stream the bytes directly to the speaker as they arrive from the API
+# Stream the bytes directly to the speaker as they arrive from the API
         for chunk in audio_stream:
             if chunk:
                 stream.write(chunk)
-                
-        # Clean up audio stream
         stream.stop_stream()
         stream.close()
         p.terminate()
